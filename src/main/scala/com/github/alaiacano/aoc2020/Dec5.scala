@@ -1,8 +1,6 @@
 package com.github.alaiacano.aoc2020
 
 object Dec5 extends App {
-  val nRows = 128
-  val nColumns = 8
 
   def directionToInt(fbString: String, one: String, zero: String): Int = {
     Integer.parseInt(fbString.replace(one, "1").replace(zero, "0"), 2)
