@@ -2,12 +2,19 @@ package com.github.alaiacano.aoc2020
 import scala.util.Try
 import com.twitter.algebird.Operators._
 
+sealed trait MappingOrder
+case object ContainerToContents extends MappingOrder
+case object ContentsToContainer extends MappingOrder
+
 object Dec7 extends App {
 
   case class Container(bagColor: String, count: Int)
   lazy val contentRegex = "^([0-9]+) (.+) bag[s]?.*$".r("bagCount", "bagColor")
 
-  def parseLine(line: String): Map[String, Seq[Container]] = {
+  def parseLine(
+      line: String,
+      mappingOrder: MappingOrder
+  ): Map[String, Seq[Container]] = {
     // This whole thing will fail if the split doesn't work. Should normally be safer here.
     val containerColor :: allContents :: Nil =
       line.split(" bags contain ").toList
@@ -20,11 +27,21 @@ object Dec7 extends App {
 
         matchOpt
           .map { m =>
-            Map(
-              m.group("bagColor") -> Seq(
-                Container(containerColor, m.group("bagCount").toInt)
-              )
-            )
+            mappingOrder match {
+              case ContentsToContainer =>
+                Map(
+                  m.group("bagColor") -> Seq(
+                    Container(containerColor, m.group("bagCount").toInt)
+                  )
+                )
+              case ContainerToContents =>
+                Map(
+                  containerColor -> Seq(
+                    Container(m.group("bagColor"), m.group("bagCount").toInt)
+                  )
+                )
+            }
+
           }
           .getOrElse(Map.empty)
       }
@@ -32,9 +49,9 @@ object Dec7 extends App {
   }
 
   val containerMapping: Map[String, Seq[Container]] =
-    Dec7Input.input.split("\n").map(parseLine).reduce(_ + _)
+    Dec7Input.input.split("\n").map(parseLine(_, ContentsToContainer)).reduce(_ + _)
   val demoContainerMapping: Map[String, Seq[Container]] =
-    Dec7Input.demoInput.split("\n").map(parseLine).reduce(_ + _)
+    Dec7Input.demoInput.split("\n").map(parseLine(_, ContentsToContainer)).reduce(_ + _)
 
   def numberThatCanContain(
       color: String,
@@ -56,6 +73,24 @@ object Dec7 extends App {
   println(
     s"Number containing at least one shiny gold (should be > 114): ${actual.size}"
   )
+
+  // PART 2 - we reverse the mapping so it's bag -> contents of bag.
+  val containerToContentsMapping = Dec7Input.input.split("\n").map(parseLine(_, ContainerToContents)).reduce(_ + _)
+  val containerToContentsMappingDemo = Dec7Input.demoInput2.split("\n").map(parseLine(_, ContainerToContents)).reduce(_ + _)
+
+  def getContentsOfBag(color: String, mapping: Map[String, Seq[Container]]): Int = {
+    // if the bag is empty, return 0
+    // otherwise, for each bag in it, return (number of that color) + (number of that color * number contained in each bag of that color)
+    mapping.get(color) match {
+      case None => 0
+      case Some(contentsList) =>
+        contentsList.map { bagCount => 
+          bagCount.count * (1 + getContentsOfBag(bagCount.bagColor, mapping))
+        }.sum
+    }
+  }
+  println(s"Part 2 DEMO total number of bags in shiny gold are: ${getContentsOfBag("shiny gold", containerToContentsMappingDemo)}")
+  println(s"Part 2 ACTUAL total number of bags in shiny gold are: ${getContentsOfBag("shiny gold", containerToContentsMapping)}")
 }
 
 object Dec7Input {
@@ -69,6 +104,14 @@ dark olive bags contain 3 faded blue bags, 4 dotted black bags.
 vibrant plum bags contain 5 faded blue bags, 6 dotted black bags.
 faded blue bags contain no other bags.
 dotted black bags contain no other bags."""
+
+  val demoInput2 = """shiny gold bags contain 2 dark red bags.
+dark red bags contain 2 dark orange bags.
+dark orange bags contain 2 dark yellow bags.
+dark yellow bags contain 2 dark green bags.
+dark green bags contain 2 dark blue bags.
+dark blue bags contain 2 dark violet bags.
+dark violet bags contain no other bags."""
 
   val input = """mirrored silver bags contain 4 wavy gray bags.
 clear tan bags contain 5 bright purple bags, 1 pale black bag, 5 muted lime bags.
