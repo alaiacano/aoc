@@ -10,15 +10,13 @@ object Instruction {
     line.split(" ").toList match {
       case "jmp" :: arg :: Nil => Jmp(arg.toInt)
       case "acc" :: arg :: Nil => Acc(arg.toInt)
-      case _                   => Nop()
+      case _                   => Nop(0)
     }
   }
 }
 case class Jmp(argument: Int) extends Instruction
 case class Acc(argument: Int) extends Instruction
-case class Nop() extends Instruction {
-  val argument = 0
-}
+case class Nop(argument: Int) extends Instruction
 
 object Dec8 extends App {
   def parseInstructions(input: String): Map[Int, Instruction] = {
@@ -30,11 +28,12 @@ object Dec8 extends App {
     inst.toMap
   }
 
-  def getAccumulatorAtLoop(input: String): Int = {
+  def getAccumulatorAtLoop(input: String, instructions: Map[Int, Instruction]): (Int, Boolean) = {
     val seenSteps = collection.mutable.Set.empty[Int]
     var currentStep: Int = 0
     var accumulator: Int = 0
-    val instructions = parseInstructions(input)
+    var programExited: Boolean = false
+
     do {
       seenSteps.add(currentStep)
 
@@ -44,21 +43,57 @@ object Dec8 extends App {
           currentStep += 1
         case Some(Jmp(i)) =>
           currentStep += i
-        case Some(Nop()) =>
+        case Some(Nop(i)) =>
           currentStep += 1
-        case cmd =>
-          throw new RuntimeException(s"got an invalid command at index $currentStep: ${cmd}")
+        case Some(cmd) =>
+          throw new RuntimeException(s"Got invalid command at step ${currentStep}: $cmd")
+        case None =>
+          println(s"Program exited at step $currentStep")
+          programExited = true
       }
-    } while (!seenSteps.contains(currentStep))
-    accumulator
+    } while (!seenSteps.contains(currentStep) && !programExited)
+    (accumulator, programExited)
   }
 
   println(
-    s"Demo input - accumulator value at start of infinite loop: ${getAccumulatorAtLoop(Dec8Input.demoInput)}"
+    s"Demo input - accumulator value at start of infinite loop: ${getAccumulatorAtLoop(Dec8Input.demoInput, parseInstructions(Dec8Input.demoInput))}"
   )
   println(
-    s"Real input - accumulator value at start of infinite loop: ${getAccumulatorAtLoop(Dec8Input.input)}"
+    s"Real input - accumulator value at start of infinite loop: ${getAccumulatorAtLoop(Dec8Input.input, parseInstructions(Dec8Input.input))}"
   )
+
+  // Part 2: for each thing in the input, if it's a jmp or nop, swap it and try.
+  def copyAndReplace(instructions: Map[Int, Instruction], keyToReplace: Int): collection.mutable.Map[Int, Instruction] = {
+    val modifiedMap = collection.mutable.Map.empty[Int, Instruction]
+    instructions.foreach {
+      case (k, v: Jmp) if k == keyToReplace => modifiedMap(k) = Nop(v.argument)
+      case (k, v: Nop) if k == keyToReplace => modifiedMap(k) = Jmp(v.argument)
+      case (k, v) => modifiedMap(k) = v
+    }
+    modifiedMap
+  }
+  def part2(input: String) = {
+    val instructions: Map[Int, Instruction] = parseInstructions(input)
+
+    instructions.foreach {
+      case (key: Int, inst: Jmp) =>
+        val modifiedInstructions = copyAndReplace(instructions, key)
+        val (acc, reachedEnd) = getAccumulatorAtLoop(input, modifiedInstructions.toMap)
+        if (reachedEnd) {
+          println(s"key: $key,  accumulator: $acc reached end: $reachedEnd")
+        }
+      case (key: Int, inst: Nop) =>
+        val modifiedInstructions = copyAndReplace(instructions, key)
+        val (acc, reachedEnd) = getAccumulatorAtLoop(input, modifiedInstructions.toMap)
+        if (reachedEnd) {
+          println(s"key: $key,  accumulator: $acc reached end: $reachedEnd")
+        }
+  
+      case _ => {}
+    }
+  }
+  println("PART 2:")
+  println(part2(Dec8Input.input))
 
 }
 
